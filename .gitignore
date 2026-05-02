@@ -1,0 +1,5 @@
+.venv
+\pl
+raw_signal.npy
+reduced_data.csv
+targets.csv
