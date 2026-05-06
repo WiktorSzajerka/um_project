@@ -2,10 +2,10 @@ import numpy as np
 import librosa
 from joblib import load
 
-with open("rocket1.pkl", "rb") as f:
+with open(r"aeon_alg\rocket1.pkl", "rb") as f:
     clf = load(f)
 
-filepath = "path"
+filepath = r"pl\clips\common_voice_pl_20547774.mp3"
 max_duration = 7.5
 freq = 16000
 max_size = int(max_duration*freq)
@@ -17,5 +17,5 @@ elif y.size < max_size:
     y = np.pad(y, (0, max_size - len(y)))
 
 
-y_pred = clf.predict(y)
+y_pred = clf.predict(np.array([y]))
 print(y_pred)
