@@ -13,15 +13,15 @@ from joblib import dump
 def transform_sig(data_path, batch_size):
     age_data = pd.read_csv(data_path)
     chunks = [age_data.iloc[i:i+batch_size] for i in range(0, len(age_data), batch_size)]
-    len_ch = len(chunks)
     max_duration = 7.5
     freq = 16000
     samp_size = int(max_duration*freq)
     ext_features_list = []
-  
 
     for ind, chunk in enumerate(chunks):
-        raw_sig = np.zeros((batch_size, samp_size), dtype=np.float32)
+        raw_sig = np.zeros((chunk.shape[0], samp_size), dtype=np.float32)
+        if ind != 0:
+            print(F"{((ind)*batch_size/age_data.shape[0]):.0%} done")
         for i, (_, row) in enumerate(chunk.iterrows()):
             filename = row["path"]
             filepath = os.path.join(r'pl\clips', filename)
@@ -38,11 +38,11 @@ def transform_sig(data_path, batch_size):
 
         ext_features = transform(raw_sig, parameters)
         ext_features_list.append(ext_features)
-        print(F"{((ind+1)/len_ch):0%} done")
 
-
+        
     ext_features = np.concatenate(ext_features_list, axis=0)
     targets = age_data["age"]
+    print(f"100% done")
     
     return ext_features, targets
 
@@ -55,7 +55,6 @@ for j in range(10):
     X_train, y_train = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=5000)
     print(f"Transforming {j} fold test data")
     X_test, y_test = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=5000)
-    print(X_train.shape, y_train.shape)
     clf = clone(log_cls)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
