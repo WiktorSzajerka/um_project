@@ -1,0 +1,8 @@
+thirties     44777
+twenties     36850
+fourties     15053
+teens         2788
+nineties       744
+fifties        731
+sixties         53
+seventies        4
