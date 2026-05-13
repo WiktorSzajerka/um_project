@@ -10,7 +10,7 @@ targets = pd.DataFrame(columns=["path", "age", "gender"])
 max_duration = 7.5
 freq = 16000
 max_size = int(max_duration*freq)
-data = np.zeros((n_clips, max_size))
+data = np.zeros((n_clips, max_size), dtype=np.float32)
 i = 0
 
 for filename in os.listdir(r'pl\clips'):

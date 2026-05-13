@@ -3,6 +3,6 @@
 raw_signal.npy
 reduced_data.csv
 targets.csv
-rocket1.pkl
 targets_test.csv
+test.py
 .idea
