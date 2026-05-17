@@ -34,7 +34,7 @@ def balance_classes(data_path):
     age_data = pd.concat([df_sampled, df_upsampled]).reset_index(drop=True)
     return age_data
 
-def transform_sig(data_path, batch_size):
+def transform_train(data_path, batch_size):
     age_data = balance_classes(data_path)
     chunks = [age_data.iloc[i:i+batch_size] for i in range(0, len(age_data), batch_size)]
     max_duration = 7.5
@@ -71,14 +71,51 @@ def transform_sig(data_path, batch_size):
     return ext_features, targets
 
 
-log_cls = LogisticRegression(class_weight="balanced", n_jobs=12)
+def transform_test(data_path, batch_size):
+    age_data = pd.read_csv(data_path)
+    chunks = [age_data.iloc[i:i+batch_size] for i in range(0, len(age_data), batch_size)]
+    max_duration = 7.5
+    freq = 16000
+    samp_size = int(max_duration*freq)
+    ext_features_list = []
+
+    for ind, chunk in enumerate(chunks):
+        raw_sig = np.zeros((chunk.shape[0], samp_size), dtype=np.float32)
+        if ind != 0:
+            print(F"{((ind)*batch_size/age_data.shape[0]):.0%} done")
+        for i, (_, row) in enumerate(chunk.iterrows()):
+            filename = row["path"]
+            filepath = os.path.join(r'pl\clips', filename)
+
+            y, sr = librosa.load(filepath, sr=freq)
+            if y.size > samp_size:
+                y = y[:samp_size]
+            elif y.size < samp_size:
+                y = np.pad(y, (0, samp_size - len(y)))
+
+            raw_sig[i] = y
+
+        parameters = fit(raw_sig)
+
+        ext_features = transform(raw_sig, parameters)
+        ext_features_list.append(ext_features)
+
+        
+    ext_features = np.concatenate(ext_features_list, axis=0)
+    targets = age_data["age"]
+    print(f"100% done")
+    
+    return ext_features, targets
+
+
+log_cls = LogisticRegression(class_weight="balanced", max_iter=1000, n_jobs=12)
 classifiers_scores = []
 
-for j in range(10):
+for j in range(1):
     print(f"Transforming {j} fold train data")
-    X_train, y_train = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
+    X_train, y_train = transform_test(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     print(f"Transforming {j} fold test data")
-    X_test, y_test = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
+    X_test, y_test = transform_train(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     clf = clone(log_cls)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)

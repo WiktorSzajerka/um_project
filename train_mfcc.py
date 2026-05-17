@@ -38,7 +38,7 @@ def balance_classes(data_path):
     age_data = pd.concat([df_sampled, df_upsampled]).reset_index(drop=True)
     return age_data
 
-def transform_sig(data_path):
+def transform_train(data_path):
     age_data = balance_classes(data_path)
     ext_features = np.zeros((age_data.shape[0], 70))
     for i, (_, row) in enumerate(age_data.iterrows()):
@@ -52,6 +52,19 @@ def transform_sig(data_path):
     
     return ext_features, targets
 
+def transform_test(data_path):
+    age_data = pd.read_csv(data_path)
+    ext_features = np.zeros((age_data.shape[0], 70))
+    for i, (_, row) in enumerate(age_data.iterrows()):
+        filename = row["path"]
+        filepath = os.path.join(r'pl\clips', filename)
+        features = extract_mfcc(filepath)
+        ext_features[i] = features
+
+    targets = age_data["age"]
+    print(f"100% done")
+    
+    return ext_features, targets
 
 scaler = StandardScaler()
 
@@ -66,8 +79,8 @@ classifiers_scores = []
 
 for j in range(10):
     for name, clf in models.items():
-        X_train, y_train = transform_sig(data_path=rf"splits\fold{j}train.csv")
-        X_test, y_test = transform_sig(data_path=rf"splits\fold{j}train.csv")
+        X_train, y_train = transform_train(data_path=rf"splits\fold{j}train.csv")
+        X_test, y_test = transform_test(data_path=rf"splits\fold{j}train.csv")
         X_train = scaler.fit_transform(X_train)
         X_test  = scaler.transform(X_test)
         clf = clone(clf)
