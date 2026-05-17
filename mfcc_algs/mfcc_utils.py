@@ -9,7 +9,7 @@ N_MFCC = 23
 N_FFT = 1024
 HOP_LENGTH = 250
 
-AGE_GROUPS = ["teens", "twenties", "thirties", "forties", "fifties", "sixties"]
+AGE_GROUPS = ["teens", "twenties", "thirties", "forties", "fifties", "sixties+"]
 
 AUDIO_DIR = "cv-corpus/pl/clips"
 METADATA_FILE = "cv-corpus/pl/validated.tsv"

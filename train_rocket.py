@@ -10,8 +10,32 @@ import matplotlib.pyplot as plt
 from joblib import dump
 
 
-def transform_sig(data_path, batch_size):
+def balance_classes(data_path):
+    age_groups = ["teens", "twenties", "thirties", "fourties"]
     age_data = pd.read_csv(data_path)
+    min_cl = age_data["age"].value_counts().min()
+
+    mask = age_data["age"].isin(age_groups)
+    df_to_reduce = age_data[mask]
+    df_to_upsample = age_data[~mask]
+
+    df_sampled = (
+        df_to_reduce
+        .groupby("age")[["path","age"]]
+        .apply(lambda x: x.sample(n=min(min_cl*2, len(x))))
+    )
+
+    df_upsampled = (
+        df_to_upsample
+        .groupby("age", group_keys=False)
+        .apply(lambda x: x.sample(n=min_cl*2, replace=True))
+    )
+
+    age_data = pd.concat([df_sampled, df_upsampled]).reset_index(drop=True)
+    return age_data
+
+def transform_sig(data_path, batch_size):
+    age_data = balance_classes(data_path)
     chunks = [age_data.iloc[i:i+batch_size] for i in range(0, len(age_data), batch_size)]
     max_duration = 7.5
     freq = 16000
@@ -52,9 +76,9 @@ classifiers_scores = []
 
 for j in range(10):
     print(f"Transforming {j} fold train data")
-    X_train, y_train = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=5000)
+    X_train, y_train = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     print(f"Transforming {j} fold test data")
-    X_test, y_test = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=5000)
+    X_test, y_test = transform_sig(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     clf = clone(log_cls)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
