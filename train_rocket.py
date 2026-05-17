@@ -113,9 +113,9 @@ classifiers_scores = []
 
 for j in range(1):
     print(f"Transforming {j} fold train data")
-    X_train, y_train = transform_test(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
+    X_train, y_train = transform_train(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     print(f"Transforming {j} fold test data")
-    X_test, y_test = transform_train(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
+    X_test, y_test = transform_test(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     clf = clone(log_cls)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
