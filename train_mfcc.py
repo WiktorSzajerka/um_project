@@ -91,9 +91,9 @@ for j in range(10):
         disp = ConfusionMatrixDisplay(confusion_matrix=cm,
                                 display_labels=["teens", "twenties", "thirties", "fourties", "fifties", 'sixties+'])
         disp.plot()
-        plt.savefig(f"Confusion matrix rocket{j}")
+        plt.savefig(f"Confusion matrix {name}{j}")
         plt.close()
         classifiers_scores.append(score)
-        with open(rf"rocket_cls\{name}{j}.pkl", 'wb') as fo:
+        with open(rf"mfcc_cls\{name}{j}.pkl", 'wb') as fo:
             dump(clf, fo)
     
