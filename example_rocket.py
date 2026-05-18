@@ -26,7 +26,7 @@ def transform_sig(filepath):
 
     return ext_features
 
-with open(r"rocket_cls\classifier.pkl", "rb") as f:
+with open(r"rocket_cls\classifier0.pkl", "rb") as f:
     clf = load(f)
 
 ext_features = transform_sig("placeholder_path")

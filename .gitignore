@@ -6,3 +6,4 @@ targets.csv
 targets_test.csv
 test.py
 .idea
+__pycache__
