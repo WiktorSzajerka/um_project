@@ -13,6 +13,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from mfcc_algs.mfcc_utils import extract_mfcc
+from rocket_fun.minirocket import fit, transform
 
 
 MAX_DURATION_SECONDS = 7.5
@@ -69,6 +70,9 @@ def check_model_type(path: Path) -> str:
     if model_name in MFCC_MODEL_NAMES:
         return "mfcc"
 
+    if "rocket_cls" in path.parts:
+        return "rocket"
+
     return "raw"
 
 
@@ -78,6 +82,8 @@ def display_model_name(path: Path) -> str:
         "random_forest": "Random Forest",
         "svc": "SVC",
         "rocket1": "ROCKET",
+        "classifier0": "ROCKET",
+        "clssifier0": "ROCKET (classifier0)",
     }
 
     model_name = path.stem.lower()
@@ -98,6 +104,15 @@ def raw_signal(audio_path: str) -> np.ndarray:
         y = np.pad(y, (0, RAW_SIGNAL_SIZE - y.size))
 
     return np.array([y])
+
+
+def rocket_features(audio_path: str) -> np.ndarray:
+    raw_sig = raw_signal(audio_path)
+
+    parameters = fit(raw_sig)
+    ext_features = transform(raw_sig, parameters)
+
+    return ext_features
 
 
 def mfcc_features(audio_path: str) -> np.ndarray:
@@ -127,6 +142,23 @@ def predict_mfcc(model, audio_path: str) -> tuple[str, str]:
 
     y_pred = clf.predict(x)
     predicted_label = le.inverse_transform(y_pred)[0]
+
+    return label_to_text(predicted_label), "—"
+
+
+def predict_rocket(model, audio_path: str) -> tuple[str, str]:
+    if not hasattr(model, "predict"):
+        raise RuntimeError("Ten plik .pkl nie zawiera obiektu z metodą predict().")
+
+    x = rocket_features(audio_path)
+
+    y_pred = model.predict(x)
+    predicted_label = y_pred[0]
+
+    predicted_array = np.asarray(predicted_label)
+
+    if predicted_array.ndim > 0 and predicted_array.size == 1:
+        predicted_label = predicted_array.item()
 
     return label_to_text(predicted_label), "—"
 
@@ -166,6 +198,11 @@ def predict_age_for_file(audio_path: str) -> list[list[str]]:
             if kind == "mfcc":
                 predicted_age, note = predict_mfcc(model, audio_path)
                 input_type = "MFCC features"
+
+            elif kind == "rocket":
+                predicted_age, note = predict_rocket(model, audio_path)
+                input_type = "ROCKET features"
+
             else:
                 predicted_age, note = predict_raw(model, audio_path)
                 input_type = "raw audio"
