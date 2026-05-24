@@ -1,4 +1,3 @@
-from rocket_fun.minirocket import fit, transform
 from mfcc_algs.mfcc_utils import extract_mfcc
 import numpy as np
 import pandas as pd
@@ -75,12 +74,12 @@ models = {
     "svc": SVC(kernel="rbf", C=10, gamma="scale", class_weight="balanced"),
 }
 
-classifiers_scores = []
+classifiers_scores = [[],[],[]]
 
-for j in range(10):
-    for name, clf in models.items():
+for j in range(1,10):
+    for ind, (name, clf) in enumerate(models.items()):
         X_train, y_train = transform_train(data_path=rf"splits\fold{j}train.csv")
-        X_test, y_test = transform_test(data_path=rf"splits\fold{j}train.csv")
+        X_test, y_test = transform_test(data_path=rf"splits\fold{j}test.csv")
         X_train = scaler.fit_transform(X_train)
         X_test  = scaler.transform(X_test)
         clf = clone(clf)
@@ -91,9 +90,15 @@ for j in range(10):
         disp = ConfusionMatrixDisplay(confusion_matrix=cm,
                                 display_labels=["teens", "twenties", "thirties", "fourties", "fifties", 'sixties+'])
         disp.plot()
-        plt.savefig(f"Confusion matrix {name}{j}")
+        plt.savefig(f"images\Confusion matrix {name}{j}")
         plt.close()
-        classifiers_scores.append(score)
-        with open(rf"mfcc_cls\{name}{j}.pkl", 'wb') as fo:
+        classifiers_scores[ind].append(score)
+        with open(rf"other_cls\{name}{j}.pkl", 'wb') as fo:
             dump(clf, fo)
     
+
+pd.DataFrame(classifiers_scores[0], columns=["nearest_centroid"]).to_csv("nearest_centroid_scores")
+
+pd.DataFrame(classifiers_scores[1], columns=["random_forest"]).to_csv("random_forest_scores")
+
+pd.DataFrame(classifiers_scores[1], columns=["svc"]).to_csv("svc_scores")

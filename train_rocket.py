@@ -4,7 +4,7 @@ import pandas as pd
 import librosa
 import os
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix, ConfusionMatrixDisplay
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import RidgeClassifier
 from sklearn.base import clone
 import matplotlib.pyplot as plt
 from joblib import dump
@@ -95,9 +95,9 @@ def transform_test(data_path, batch_size):
 
             raw_sig[i] = y
 
-        parameters = fit(raw_sig)
+        parameters = minirocket.fit(raw_sig)
 
-        ext_features = transform(raw_sig, parameters)
+        ext_features = minirocket.transform(raw_sig, parameters)
         ext_features_list.append(ext_features)
 
         
@@ -108,15 +108,15 @@ def transform_test(data_path, batch_size):
     return ext_features, targets
 
 
-log_cls = LogisticRegression(class_weight="balanced", max_iter=1000, n_jobs=12)
+clf = RidgeClassifier(class_weight="balanced")
 classifiers_scores = []
 
 for j in range(1):
     print(f"Transforming {j} fold train data")
     X_train, y_train = transform_train(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
     print(f"Transforming {j} fold test data")
-    X_test, y_test = transform_test(data_path=rf"splits\fold{j}train.csv", batch_size=2000)
-    clf = clone(log_cls)
+    X_test, y_test = transform_test(data_path=rf"splits\fold{j}test.csv", batch_size=5000)
+    clf = clone(clf)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     score = balanced_accuracy_score(y_test, y_pred)
@@ -127,7 +127,7 @@ for j in range(1):
     plt.savefig(f"Confusion matrix rocket{j}")
     plt.close()
     classifiers_scores.append(score)
-    with open(rf"rocket_cls\logcls{j}.pkl", 'wb') as fo:
+    with open(rf"rocket_cls\classifier{j}.pkl", 'wb') as fo:
         dump(clf, fo)
     
 
