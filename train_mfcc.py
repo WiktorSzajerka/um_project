@@ -25,13 +25,13 @@ def balance_classes(data_path):
     df_sampled = (
         df_to_reduce
         .groupby("age")[["path","age"]]
-        .apply(lambda x: x.sample(n=min(min_cl*2, len(x))))
+        .apply(lambda x: x.sample(n=min(min_cl*2, len(x)), random_state=42))
     )
 
     df_upsampled = (
         df_to_upsample
         .groupby("age", group_keys=False)
-        .apply(lambda x: x.sample(n=min_cl*2, replace=True))
+        .apply(lambda x: x.sample(n=min_cl*2, replace=True, random_state=42))
     )
 
     age_data = pd.concat([df_sampled, df_upsampled]).reset_index(drop=True)
@@ -65,8 +65,6 @@ def transform_test(data_path):
     
     return ext_features, targets
 
-scaler = StandardScaler()
-
 
 models = {
     "nearest_centroid": NearestCentroid(),
@@ -76,29 +74,34 @@ models = {
 
 classifiers_scores = [[],[],[]]
 
-for j in range(1,10):
-    for ind, (name, clf) in enumerate(models.items()):
-        X_train, y_train = transform_train(data_path=rf"splits\fold{j}train.csv")
-        X_test, y_test = transform_test(data_path=rf"splits\fold{j}test.csv")
-        X_train = scaler.fit_transform(X_train)
-        X_test  = scaler.transform(X_test)
-        clf = clone(clf)
+labels = ["teens", "twenties", "thirties", "fourties", "fifties", "sixties+"]
+
+for j in range(8,10):
+    X_train, y_train = transform_train(data_path=rf"splits\fold{j}train.csv")
+    X_test, y_test = transform_test(data_path=rf"splits\fold{j}test.csv")
+
+    scaler = StandardScaler()
+
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    for ind, (name, base_clf) in enumerate(models.items()):
+        clf = clone(base_clf)
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         score = balanced_accuracy_score(y_test, y_pred)
-        cm = confusion_matrix(y_test, y_pred, labels=["teens", "twenties", "thirties", "fourties", "fifties", 'sixties+'])
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm,
-                                display_labels=["teens", "twenties", "thirties", "fourties", "fifties", 'sixties+'])
+        cm = confusion_matrix(y_test, y_pred, labels=labels)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
         disp.plot()
-        plt.savefig(f"images\Confusion matrix {name}{j}")
+        plt.savefig(os.path.join("images", f"Confusion matrix {name}{j}.png"))
         plt.close()
         classifiers_scores[ind].append(score)
         with open(rf"other_cls\{name}{j}.pkl", 'wb') as fo:
-            dump(clf, fo)
+            dump((clf, scaler), fo)
     
 
 pd.DataFrame(classifiers_scores[0], columns=["nearest_centroid"]).to_csv("nearest_centroid_scores")
 
 pd.DataFrame(classifiers_scores[1], columns=["random_forest"]).to_csv("random_forest_scores")
 
-pd.DataFrame(classifiers_scores[1], columns=["svc"]).to_csv("svc_scores")
+pd.DataFrame(classifiers_scores[2], columns=["svc"]).to_csv("svc_scores")

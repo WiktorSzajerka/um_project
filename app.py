@@ -1,5 +1,6 @@
 import tempfile
 import threading
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -19,13 +20,6 @@ from rocket_fun.minirocket import fit, transform
 MAX_DURATION_SECONDS = 7.5
 RAW_SAMPLE_RATE = 16_000
 RAW_SIGNAL_SIZE = int(MAX_DURATION_SECONDS * RAW_SAMPLE_RATE)
-
-
-MFCC_MODEL_NAMES = {
-    "nearest_centroid",
-    "random_forest",
-    "svc",
-}
 
 
 LABELS = {
@@ -59,21 +53,22 @@ def find_models() -> list[Path]:
         if any(part in ignored_dirs for part in path.parts):
             continue
 
-        paths.append(path)
+        type = check_model_type(path)
+
+        if type in ["mfcc", "rocket"]:
+            paths.append(path)
 
     return sorted(paths)
 
 
 def check_model_type(path: Path) -> str:
-    model_name = path.stem.lower()
-
-    if model_name in MFCC_MODEL_NAMES:
+    if "other_cls" in path.parts:
         return "mfcc"
 
     if "rocket_cls" in path.parts:
         return "rocket"
 
-    return "raw"
+    return "unknown"
 
 
 def display_model_name(path: Path) -> str:
@@ -81,12 +76,15 @@ def display_model_name(path: Path) -> str:
         "nearest_centroid": "Nearest Centroid",
         "random_forest": "Random Forest",
         "svc": "SVC",
-        "rocket1": "ROCKET",
-        "classifier0": "ROCKET",
-        "clssifier0": "ROCKET (classifier0)",
+        "classifier": "ROCKET",
+        "rocket": "ROCKET",
     }
 
     model_name = path.stem.lower()
+    base_name = path.stem.lower().rstrip("0123456789")
+
+    if base_name in names:
+        return names[base_name]
 
     if model_name in names:
         return names[model_name]
@@ -135,13 +133,13 @@ def label_to_text(label: Any) -> str:
 
 
 def predict_mfcc(model, audio_path: str) -> tuple[str, str]:
-    clf, scaler, le = model[:3]
+    clf, scaler = model
 
     features = mfcc_features(audio_path)
     x = scaler.transform(features)
 
     y_pred = clf.predict(x)
-    predicted_label = le.inverse_transform(y_pred)[0]
+    predicted_label = y_pred[0]
 
     return label_to_text(predicted_label), "—"
 
@@ -163,63 +161,105 @@ def predict_rocket(model, audio_path: str) -> tuple[str, str]:
     return label_to_text(predicted_label), "—"
 
 
-def predict_raw(model, audio_path: str) -> tuple[str, str]:
-    if not hasattr(model, "predict"):
-        raise RuntimeError("Ten plik .pkl nie zawiera obiektu z metodą predict().")
+def predict_group(model_paths: list[Path], audio_path: str, type: str) -> list[str]:
+    predictions: list[str] = []
+    errors: list[str] = []
 
-    x = raw_signal(audio_path)
+    for path in model_paths:
+        try:
+            model = load(path)
 
-    y_pred = model.predict(x)
-    predicted_label = y_pred[0]
+            if type == "mfcc":
+                predicted_age, _ = predict_mfcc(model, audio_path)
+                input_type = "MFCC features"
+            elif type == "rocket":
+                predicted_age, _ = predict_rocket(model, audio_path)
+                input_type = "ROCKET features"
+            else:
+                continue
 
-    predicted_array = np.asarray(predicted_label)
+            predictions.append(predicted_age)
 
-    if predicted_array.ndim > 0 and predicted_array.size == 1:
-        predicted_label = predicted_array.item()
+        except Exception as exc:
+            error_text = f"{path.name}: {exc}"
+            print(error_text)
+            errors.append(error_text)
 
-    return label_to_text(predicted_label), "—"
+    model_name = display_model_name(model_paths[0])
+
+    if not predictions:
+        error_text = errors[0] if errors else "nieznany błąd"
+
+        return [
+            model_name,
+            input_type,
+            "—",
+            f"Błąd dla wszystkich modeli: {error_text}",
+        ]
+
+    counts = Counter(predictions)
+    final_prediction, votes = counts.most_common(1)[0]
+
+    note = f"Głosowanie: {votes}/{len(predictions)}"
+
+    if errors:
+        note += f"; błędy: {len(errors)}"
+
+    return [
+        model_name,
+        input_type,
+        final_prediction,
+        note,
+    ]
 
 
 def predict_age_for_file(audio_path: str) -> list[list[str]]:
     model_paths = find_models()
 
     if not model_paths:
-        raise RuntimeError("Nie znaleziono żadnego pliku .pkl w projekcie.")
+        raise RuntimeError("Nie znaleziono żadnych modeli MFCC ani ROCKET.")
 
     rows: list[list[str]] = []
 
+    grouped_models = defaultdict(list)
+
     for path in model_paths:
-        kind = check_model_type(path)
-        model_name = display_model_name(path)
+        type = check_model_type(path)
+        base_name = path.stem.lower().rstrip("0123456789")
 
-        try:
-            model = load(path)
+        if type in ["mfcc", "rocket"]:
+            grouped_models[(type, base_name)].append(path)
 
-            if kind == "mfcc":
-                predicted_age, note = predict_mfcc(model, audio_path)
-                input_type = "MFCC features"
+    mfcc_order = ["nearest_centroid", "random_forest", "svc"]
 
-            elif kind == "rocket":
-                predicted_age, note = predict_rocket(model, audio_path)
-                input_type = "ROCKET features"
+    for base_name in mfcc_order:
+        key = ("mfcc", base_name)
 
-            else:
-                predicted_age, note = predict_raw(model, audio_path)
-                input_type = "raw audio"
+        if key in grouped_models:
+            rows.append(
+                predict_group(
+                    grouped_models[key],
+                    audio_path,
+                    "mfcc",
+                )
+            )
 
-        except Exception as exc:
-            predicted_age = "—"
-            note = f"Błąd: {exc}"
-            input_type = kind
+    rocket_keys = [
+        key for key in grouped_models
+        if key[0] == "rocket"
+    ]
 
+    for key in sorted(rocket_keys):
         rows.append(
-            [
-                model_name,
-                input_type,
-                predicted_age,
-                note,
-            ]
+            predict_group(
+                grouped_models[key],
+                audio_path,
+                "rocket",
+            )
         )
+
+    if not rows:
+        raise RuntimeError("Nie udało się wykonać predykcji dla żadnego modelu.")
 
     return rows
 
@@ -440,10 +480,10 @@ class AgeEstimatorDesktopApp:
         for row in rows:
             self.results_tree.insert("", tk.END, values=row)
 
-        ok_count = sum(1 for row in rows if not str(row[-1]).startswith("Błąd:"))
+        ok_count = sum(1 for row in rows if not str(row[-1]).startswith("Błąd"))
 
         self.status_var.set(
-            f"Poprawnie wykonano predykcję dla {ok_count}/{len(rows)} modeli."
+            f"Poprawnie wykonano predykcję dla {ok_count}/{len(rows)} grup modeli."
         )
 
         self.predict_button.config(state=tk.NORMAL)
@@ -460,7 +500,9 @@ class AgeEstimatorDesktopApp:
     def refresh_models(self) -> None:
         model_paths = find_models()
 
-        self.models_info_var.set(f"Liczba znalezionych modeli: {len(model_paths)}")
+        self.models_info_var.set(
+            f"Liczba znalezionych plików modeli MFCC/ROCKET: {len(model_paths)}"
+        )
         self.status_var.set("Odświeżono listę modeli.")
 
     def clear_results(self) -> None:
